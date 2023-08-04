@@ -1,0 +1,30 @@
+# Compiled Python files
+__pycache__/
+*.py[cod]
+
+# Compiled Cython files
+*.so
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Python bytecode
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE-specific files
+.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace

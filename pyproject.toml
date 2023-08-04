@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "pretty-pubmed-parser"
+version = "0.1.0"
+description = ""
+authors = ["Timofei Ryko <timofei.ryko@gmail.com>"]
+readme = "README.md"
+packages = [{include = "pretty_pubmed_parser"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

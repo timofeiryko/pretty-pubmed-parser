@@ -8,6 +8,9 @@ packages = [{include = "pretty_pubmed_parser"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+fastapi = "^0.100.1"
+biopython = "^1.81"
+uvicorn = "^0.23.2"
 
 
 [build-system]

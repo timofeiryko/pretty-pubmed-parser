@@ -22,6 +22,7 @@ class ReadyPaper(BaseModel):
 
     abstract: str
     journal: str
+    date: str
 
     authors: Optional[List[ReadyAuthor]]
 
@@ -35,51 +36,32 @@ def setup_ncbi() -> logging.Logger:
 
     return pubmed_logger
 
+def generate_journal_query(journal_name: str) -> str:
+    return f'"{journal_name}"[Journal]'
+
+def generate_handle_args(query: str, max_results_num: str, esearch_args: Optional[Dict[str, str]] = None):
+
+    handle_args = {
+        'db': 'pubmed',
+        'retmode': 'xml',
+        'sort': 'pub_date',
+        'term': query,
+        'retmax': str(max_results_num)
+    }
+
+    if esearch_args:
+        handle_args.update(esearch_args)
+
+    return handle_args
 
 
-def search(query: str, results_num: int = BATCH_SIZE, sort: str = 'pub_date') -> dict:
-    handle = Entrez.esearch(
-        db='pubmed', 
-        sort=sort, 
-        retmax=str(results_num),
-        retmode='xml', 
-        term=query
-    )
+def extract_num_pages(handle_args: dict) -> int:
+
+    handle_args['retmax'] = str(5)
+    handle = Entrez.esearch(**handle_args)
     results = dict(Entrez.read(handle))
 
-    return results
-
-def search_by_journal(journal_name: str, results_num: int = BATCH_SIZE, sort: str = 'pub_date') -> dict:
-    handle = Entrez.esearch(
-        db='pubmed', 
-        sort=sort, 
-        retmax=str(results_num),
-        retmode='xml', 
-        term=f'"{journal_name}"[Journal]'
-    )
-    results = dict(Entrez.read(handle))
-
-    return results
-
-def search_num_pages(query: str) -> int:
-    handle = Entrez.esearch(
-        db='pubmed', 
-        retmax=str(10),
-        retmode='xml', 
-        term=query
-    )
-    results = dict(Entrez.read(handle))
-
-    return  (int(results['Count']) // BATCH_SIZE) + 1
-
-def search_by_journal_num_pages(journal_name: str) -> int:
-    handle = Entrez.esearch(
-        db='pubmed', 
-        retmax=str(10),
-        retmode='xml', 
-        term=f'"{journal_name}"[Journal]'
-    )
-    results = dict(Entrez.read(handle))
+    print(results)
 
     return  (int(results['Count']) // BATCH_SIZE) + 1
 
@@ -132,13 +114,13 @@ def clean_text(s: str) -> str:
     return s
 
 
-def get_doi(article_id_list) -> str:
+def extract_doi(article_id_list) -> str:
     for string_element in article_id_list:
         if string_element.__dict__['attributes']['IdType'] == 'doi':
             return string_element.__str__().lower()
 
 
-def get_abstract(paper) -> str:
+def extract_abstract(paper) -> str:
     
     string_list = []
 
@@ -157,15 +139,23 @@ def get_abstract(paper) -> str:
     
     return '\n'.join(cleaned_list)
 
+def extract_date(paper):
+
+    date_dict = dict(paper['MedlineCitation']['Article']['ArticleDate'][0])
+    date_str= f'{date_dict["Year"]}-{date_dict["Month"]}-{date_dict["Day"]}'
+
+    return date_str
+
 def parse_paper(paper) -> ReadyPaper:
 
     title = clean_text(paper['MedlineCitation']['Article']['ArticleTitle'])
     pmid = int(paper['MedlineCitation']['PMID'])
-    doi = get_doi(paper['PubmedData']['ArticleIdList'])
+    doi = extract_doi(paper['PubmedData']['ArticleIdList'])
     link = f'https://doi.org/{doi}'
 
-    abstract = get_abstract(paper['MedlineCitation']['Article'])
+    abstract = extract_abstract(paper['MedlineCitation']['Article'])
     journal = paper['MedlineCitation']['Article']['Journal']['Title']
+    date = extract_date(paper)
 
     authors = []
     if 'AuthorList' in paper['MedlineCitation']['Article'].keys():
@@ -186,6 +176,7 @@ def parse_paper(paper) -> ReadyPaper:
         link=link,
         abstract=abstract,
         journal=journal,
+        date=date,
         authors = None if not authors else authors
     )
 
@@ -194,9 +185,11 @@ def parse_paper(paper) -> ReadyPaper:
 
     return ready_paper
 
+
 def get_ready_paper_by_id(id: int):
     papers = fetch_details([id])['PubmedArticle']
     return parse_paper(papers[0])
+
 
 
 def get_ready_papers(
@@ -204,14 +197,23 @@ def get_ready_papers(
         query: str,
         max_results_num: int = BATCH_SIZE,
         ids: Optional[List[int]] = None,
-        esearch_args: Optional[Dict[str: str]] = None,
-) -> Dict[int: ReadyPaper]:
+        esearch_args: Optional[Dict[str, str]] = None,
+) -> Dict[int, ReadyPaper]:
+    
+    if esearch_args and ids:
+        raise ValueError("You cannot pass id list and esearch arguments at the same time!")
     
     if esearch_args is None:
         esearch_args = {}
     
     if not ids:
-        results = search(query, max_results_num)
+
+        handle_args = generate_handle_args(query, max_results_num, esearch_args=esearch_args)
+
+        results = dict(
+            Entrez.read(Entrez.esearch(**handle_args))
+        )
+
         ids = results['IdList']
 
     output = {}
@@ -221,102 +223,26 @@ def get_ready_papers(
         try:
             ready_paper = parse_paper(paper)
         except Exception as e:
-            pubmed_logger.error(f'Error while parsing paper matching query "{query}"')
+            pubmed_logger.error(f'Error while parsing paper matching query "{query}. We will try to parse it again."')
             pubmed_logger.error(e)
             continue
         if ready_paper:
             output[ready_paper.pmid] = ready_paper
-            
 
-
-    
-
-
-    
-
-def get_papers_by_query(pubmed_logger: logging.Logger, query: str, results_num: int = BATCH_SIZE) -> List[ReadyPaper]:
-
-    results = search(query, results_num)
-    ids = results['IdList']
-    papers = fetch_details(ids)['PubmedArticle']
-
-    if len(papers) < results_num:
-        results = search(query, results_num * 2)
-        ids = results['IdList']
-        papers = fetch_details(ids)['PubmedArticle']
-
-    outuput = []
-
-    for paper in papers:
+    # try again for not found ids
+    for not_parsed_id in set(ids) - set(output.keys()):
         try:
-            outuput.append(parse_paper(paper))
+            ready_paper = get_ready_paper_by_id(not_parsed_id)
         except Exception as e:
-            pubmed_logger.error(f'Error while parsing paper about {query}!')
+            pubmed_logger.error(f'Error while parsing paper with id "{not_parsed_id}" matching query "{query}". No further attempts will be performed.')
             pubmed_logger.error(e)
             continue
 
-    if len(outuput) < results_num:
-        results = search(query, results_num * 2)
-        ids = results['IdList']
-        papers = fetch_details(ids)['PubmedArticle']
+    if len(output) < len(ids):
+        pubmed_logger.warning(f'Not enough papers for query "{query}", found only {len(output)}!')
 
-    for paper in papers:
-        try:
-            outuput.append(parse_paper(paper))
-        except Exception as e:
-            pubmed_logger.error(f'Error while parsing paper about {query}!')
-            pubmed_logger.error(e)
-            continue
 
-    if len(outuput) < results_num:
-        pubmed_logger.warning(f'Not enough papers about {query}, found only {len(outuput)}!')
-
-    if len(outuput) > results_num:
-        outuput = outuput[:results_num]
-
-    return outuput
-
-def get_papers_by_journal(pubmed_logger: logging.Logger, journal_name: str, results_num = BATCH_SIZE):
-
-    results = search_by_journal(journal_name, results_num)
-    ids = results['IdList']
-    papers = fetch_details(ids)['PubmedArticle']
-
-    if len(papers) < results_num:
-        results = search_by_journal(journal_name, results_num * 2)
-        ids = results['IdList']
-        papers = fetch_details(ids)['PubmedArticle']
-
-    outuput = []
-
-    for paper in papers:
-        try:
-            outuput.append(parse_paper(paper))
-        except Exception as e:
-            pubmed_logger.error(f'Error while parsing papers from journal "{journal_name}"!')
-            pubmed_logger.error(e)
-            continue
-
-    if len(outuput) < results_num:
-        results = search_by_journal(journal_name, results_num * 2)
-        ids = results['IdList']
-        papers = fetch_details(ids)['PubmedArticle']
-
-    for paper in papers:
-        try:
-            outuput.append(parse_paper(paper))
-        except Exception as e:
-            pubmed_logger.error(f'Error while parsing papers from journal "{journal_name}"!')
-            pubmed_logger.error(e)
-            continue
-
-    if len(outuput) < results_num:
-        pubmed_logger.warning(f'Not enough papers from journal "{journal_name}", found only {len(outuput)}!')
-
-    if len(outuput) > results_num:
-        outuput = outuput[:results_num]
-
-    return outuput
+    return output
 
     # TODO DRY
 

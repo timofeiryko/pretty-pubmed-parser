@@ -1,0 +1,5 @@
+# Custom Dictionary Words
+fastapi
+maxdate
+mindate
+uvicorn

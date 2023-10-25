@@ -2,8 +2,11 @@ import logging, sys
 from typing import List, Dict, Optional 
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from functools import lru_cache
+from frozendict import frozendict
 
 from pydantic import BaseModel, HttpUrl
+from fastapi import HTTPException
 from Bio import Entrez
 
 from configs import ENTREZ_EMAIL, BATCH_SIZE, TIME_BATCH_MONTHS, START_YEAR
@@ -39,14 +42,27 @@ def setup_ncbi() -> logging.Logger:
 def generate_journal_query(journal_name: str) -> str:
     return f'"{journal_name}"[Journal]'
 
-def generate_handle_args(query: str, max_results_num: str, esearch_args: Optional[Dict[str, str]] = None):
+def generate_handle_args(
+        query: str, max_results_num: str, esearch_args: Optional[Dict[str, str]] = None,
+        min_date: Optional[str] = None, max_date: Optional[str] = None
+):
+    
+    if min_date is None:
+        date = datetime(year=START_YEAR, month=1, day=1)
+        min_date = date.strftime('%Y/%m/%d')
+
+    if max_date is None:
+        today = datetime.today()
+        max_date = today.strftime('%Y/%m/%d')
 
     handle_args = {
         'db': 'pubmed',
         'retmode': 'xml',
         'sort': 'pub_date',
         'term': query,
-        'retmax': str(max_results_num)
+        'retmax': str(max_results_num),
+        'mindate': min_date,
+        'maxdate': max_date
     }
 
     if esearch_args:
@@ -244,13 +260,33 @@ def get_ready_papers(
 
     return output
 
-    # TODO DRY
+@lru_cache(maxsize=32)
+def get_batch_by_num_pages(handle_args: frozendict, num_pages: int) -> list:
+
+    if num_pages * BATCH_SIZE + 1 < 10000:
+        results = dict(
+            Entrez.read(Entrez.esearch(**handle_args))
+        )
+
+        id_list = list(results['IdList'])
+
+    else:
+        raise HTTPException(status_code=400, detail='Too much results found! Please, specify your query (you can narrow the dates diapason).')
+    
+    return id_list
 
     # TODO
-    # DATETIME
+    # DATETIME - DONE!
     # PAGINATION:
-    # - create function to get the number of pages
+    # - create function to get the number of pages - DONE!
+
     # - add page_num param to the get_papers_ funcs
     # - divide into batches, matching by ids
     # - query these papers (separate id list creation and further operations into separate funcs)
     # - if there are some errors, some pages will be just less than 100, it's ok
+
+    # NEWER IMPLEMENTATION:
+    # - Create ids param to get_ready_papers - DONE
+    # - Generate ids and save into Python list?
+
+    # HOW TO ? WE

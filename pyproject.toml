@@ -12,6 +12,7 @@ fastapi = "^0.101.0"
 biopython = "^1.81"
 uvicorn = "^0.23.2"
 ipykernel = "^6.25.2"
+frozendict = "^2.3.8"
 
 
 [build-system]

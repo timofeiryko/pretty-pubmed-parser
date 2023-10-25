@@ -38,6 +38,14 @@ uvicorn main:app --reload
 
 To try it out, you can use the built-in FastAPI docs at `http://localhost:8000/docs`.
 
-### Set up
+You can search by some keyword or by journal, you can also liimit the number of retrived results or use pagination. Filtering by publication date is also possible. Example query:
+
+```bash
+curl -X 'GET' \
+  'http://localhost:8000/journal/Nature?results_num=100&p=2&min_date=2020%2F01%2F01&max_date=2022%2F01%2F01' \
+  -H 'accept: application/json'
+```
+
+### Customization
 
 You can change the parameters of the API like `ENTREZ_EMAIL` in the `configs.py` file.

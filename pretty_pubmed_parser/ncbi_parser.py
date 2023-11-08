@@ -183,8 +183,11 @@ def parse_paper(paper) -> ReadyPaper:
                         lastname=author['LastName']
                     )
                 )
-                
 
+    paper_types = paper['MedlineCitation']['Article']['PublicationTypeList']
+    if 'Journal Article' not in paper_types:
+        raise ValueError(f'Paper types are {paper_types}, but not "Journal Article", skipping paper')
+    
     ready_paper = ReadyPaper(
         title=title,
         pmid=pmid,

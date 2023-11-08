@@ -32,7 +32,7 @@ async def search_num_pages(query: str, response_model=int):
     return result
 
 
-@app.get("/journal/{journal_name}")
+@app.get("/journal/{journal_name}")     
 async def search_journal(
     journal_name: str, results_num: int = BATCH_SIZE, p: Optional[int] = None, response_model=Dict[int, ReadyPaper],
     min_date: Optional[str] = None, max_date: Optional[str] = None
@@ -48,7 +48,7 @@ async def search_journal(
     pubmed_logger = setup_ncbi()
     journal_query = generate_journal_query(journal_name)
 
-    if p:
+    if p:   
         # generate id list from page number
         handle_args = generate_handle_args(journal_query, max_results_num=BATCH_SIZE, min_date=min_date, max_date=max_date, esearch_args=esearch_args)
         handle_args['retmax'] = 10**8
@@ -59,6 +59,8 @@ async def search_journal(
         except IndexError:
             raise HTTPException(status_code=400, detail='There is no such big page number for this query!')
         batch = batches[p-1]
+    else:
+        batch = None
 
     result = get_ready_papers(pubmed_logger, journal_query, results_num, ids=batch)
 

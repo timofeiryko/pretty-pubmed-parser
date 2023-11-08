@@ -2,6 +2,15 @@ version: "0.2"
 ignorePaths: []
 dictionaryDefinitions: []
 dictionaries: []
-words: []
+words:
+  - esearch
+  - fastapi
+  - frozendict
+  - maxdate
+  - mindate
+  - ncbi
+  - pubmed
+  - retmax
+  - uvicorn
 ignoreWords: []
 import: []

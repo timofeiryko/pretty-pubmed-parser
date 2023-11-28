@@ -25,7 +25,7 @@ parso==0.8.3
 pexpect==4.8.0
 pickleshare==0.7.5
 platformdirs==3.10.0
--e git+ssh://git@github.com/timofeiryko/pretty-pubmed-parser.git@06521b147d2582d1b164ae734552285223c43bff#egg=pretty_pubmed_parser
+-e git+ssh://git@github.com/timofeiryko/pretty-pubmed-parser.git@06083aeeb47e7a27d53478a230f0055e4e51a1e2#egg=pretty_pubmed_parser
 prompt-toolkit==3.0.39
 psutil==5.9.5
 ptyprocess==0.7.0
